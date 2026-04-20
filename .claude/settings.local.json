@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import PyPDF2; r = PyPDF2.PdfReader\\('c:/Users/ABM/Documents/GitHub/Research/docs/Research \\(9\\).pdf'\\); print\\(len\\(r.pages\\)\\); text = ''.join\\([r.pages[i].extract_text\\(\\) for i in range\\(min\\(5,len\\(r.pages\\)\\)\\)]\\); print\\(text[:4000]\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"import fitz; doc = fitz.open\\('c:/Users/ABM/Documents/GitHub/Research/docs/Research \\(9\\).pdf'\\); print\\(len\\(doc\\)\\); text = ''.join\\([doc[i].get_text\\(\\) for i in range\\(min\\(8, len\\(doc\\)\\)\\)]\\); print\\(text[:5000]\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8','replace'\\)[:]\\)\")"
+    ]
+  }
+}

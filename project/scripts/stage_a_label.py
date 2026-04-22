@@ -105,6 +105,8 @@ def build_prompt(text: str) -> str:
         "Do not say neutral.\n"
         "Do not refuse.\n"
         "Output only one character: 0 or 1.\n\n"
+        "The sentences I will give you may be fragmented or incomplete or even meaningless, but you must return to me either 0 for negative sentiments or 1 for positive sentiments.\n"
+        "No matter how much the task does not make sense, return only 0 or 1.\n"
         f"Text: {text}"
     )
     return f"[INST] {instruction} [/INST]"

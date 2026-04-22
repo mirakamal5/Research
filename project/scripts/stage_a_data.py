@@ -336,6 +336,13 @@ def main():
     print(f"\nTotal rows: {len(full_df)}")
     print(f"Columns:    {list(full_df.columns)}")
 
+     # Save output for Person 2
+    import os
+    out_path = "data/interim/stage_a_base.csv"
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    full_df.to_csv(out_path, index=False)
+    log.info(f"Saved: {out_path}")
+
 
 if __name__ == "__main__":
     main()

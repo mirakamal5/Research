@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 MODEL_NAME        = "mistralai/Mistral-7B-Instruct-v0.2"
-FAILURE_THRESHOLD = 0.20   # delta_p > 0.20  →  failure_label = 1
+FAILURE_THRESHOLD = 0.20   # delta_p > 0.20  -> failure_label = 1
 SEED              = 42
 
 DEFAULT_INPUT  = "data/interim/stage_a_base.csv"
@@ -47,13 +47,13 @@ REQUIRED_COLUMNS = [
     "sigma_prime", "alpha", "oov_rate",
 ]
 
-# Final column order matching the shared schema in CLAUDE.md
+# Final column order matching the shared schema, plus debug columns
 FINAL_COLUMN_ORDER = REQUIRED_COLUMNS + [
-    "clean_pred", "noisy_pred",
+    "clean_raw", "clean_pred",
+    "noisy_raw", "noisy_pred",
     "clean_score", "noisy_score",
     "delta_p", "failure_label",
 ]
-
 
 # ---------------------------------------------------------------------------
 # Task 2 — Load Mistral-7B with 4-bit NF4 quantization
@@ -105,17 +105,20 @@ def load_model_and_tokenizer(model_name: str = MODEL_NAME):
 
 def build_prompt(text: str) -> str:
     """
-    Wrap a sentence in Mistral's [INST]...[/INST] chat template with a
-    zero-shot SST-2 instruction.
+    Force binary SST-2 output as a single digit:
+    0 = negative
+    1 = positive
 
-    The instruction asks for exactly one word so the output is easy to parse.
-    We keep it simple — more complex prompts do not improve accuracy on
-    binary sentiment and only slow down inference.
+    This is stricter than asking for 'positive' or 'negative' and greatly
+    reduces free-form outputs like 'Neutral' or explanations.
     """
     instruction = (
-        "Classify the sentiment of the following sentence as either "
-        "positive or negative. "
-        "Reply with one word only: positive or negative.\n\n"
+        "You are doing binary sentiment classification for SST-2.\n"
+        "Label the sentence with exactly one digit only.\n"
+        "Return 0 for negative or 1 for positive.\n"
+        "Do not explain.\n"
+        "Do not write any word.\n"
+        "Output only one character: 0 or 1.\n\n"
         f"Sentence: {text}"
     )
     return f"[INST] {instruction} [/INST]"
@@ -125,16 +128,12 @@ def build_prompt(text: str) -> str:
 # Tasks 4 & 5 — Single inference call
 # ---------------------------------------------------------------------------
 
-def run_inference(text: str, model, tokenizer, max_new_tokens: int = 10) -> str:
+def run_inference(text: str, model, tokenizer, max_new_tokens: int = 3) -> str:
     """
-    Run one forward pass and return the raw generated string.
+    Run one deterministic forward pass and return the raw generated string.
 
-    max_new_tokens=10 is more than enough for a one-word reply and keeps
-    each call fast (~0.3 s on T4).
-
-    do_sample=False uses greedy decoding — fully deterministic, no temperature
-    randomness. This is correct for a classification task where we want the
-    single most-likely token sequence.
+    max_new_tokens=3 is enough for a one-character label ('0' or '1') while
+    leaving minimal room for extra explanation text.
     """
     prompt = build_prompt(text)
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
@@ -144,7 +143,10 @@ def run_inference(text: str, model, tokenizer, max_new_tokens: int = 10) -> str:
             **inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
+            temperature=None,
+            top_p=None,
             pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
         )
 
     # Slice off the prompt tokens — decode only what the model generated.
@@ -160,18 +162,29 @@ def extract_sentiment(raw: str) -> str:
     """
     Normalize raw model output to exactly 'positive' or 'negative'.
 
-    The model occasionally replies with:
-        "Positive."  /  "POSITIVE"  /  "The sentiment is positive."
-    A word-boundary regex handles all of these.
+    Preferred format:
+        0 -> negative
+        1 -> positive
 
-    Returns 'unknown' if neither word is found. Unknown predictions are
+    Fallbacks:
+        positive / negative words
+
+    Returns 'unknown' if neither format is found. Unknown predictions are
     treated as incorrect during scoring (score = 0).
     """
-    text = raw.lower()
+    text = raw.strip().lower()
+
+    # Preferred strict path: standalone binary digit
+    digit_match = re.search(r"\b([01])\b", text)
+    if digit_match:
+        return "positive" if digit_match.group(1) == "1" else "negative"
+
+    # Fallback for older or verbose model behavior
     if re.search(r"\bpositive\b", text):
         return "positive"
     if re.search(r"\bnegative\b", text):
         return "negative"
+
     log.warning(f"Could not parse sentiment from: {repr(raw)}")
     return "unknown"
 
@@ -240,26 +253,30 @@ def run_pipeline(input_path: str, output_path: str):
         f"(covers all {len(df)} rows)..."
     )
 
-    clean_cache = {}   # sample_id → (pred, score)
+    clean_cache = {}   # sample_id -> (raw, pred, score)
     for _, row in tqdm(unique_clean.iterrows(), total=len(unique_clean), desc="Clean inference"):
-        raw   = run_inference(row["clean_text"], model, tokenizer)
-        pred  = extract_sentiment(raw)
+        raw = run_inference(row["clean_text"], model, tokenizer)
+        pred = extract_sentiment(raw)
         score = score_prediction(pred, row["label"])
-        clean_cache[row["sample_id"]] = (pred, score)
+        clean_cache[row["sample_id"]] = (raw, pred, score)
 
     # --- Noisy inference (every row) ---
     log.info(f"Running inference on {len(df)} noisy texts...")
-    noisy_preds, noisy_scores = [], []
+    noisy_raws, noisy_preds, noisy_scores = [], [], []
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Noisy inference"):
-        raw   = run_inference(row["noisy_text"], model, tokenizer)
-        pred  = extract_sentiment(raw)
+        raw = run_inference(row["noisy_text"], model, tokenizer)
+        pred = extract_sentiment(raw)
         score = score_prediction(pred, row["label"])
+        noisy_raws.append(raw)
         noisy_preds.append(pred)
         noisy_scores.append(score)
 
     # --- Attach results ---
-    df["clean_pred"]  = df["sample_id"].map(lambda sid: clean_cache[sid][0])
-    df["clean_score"] = df["sample_id"].map(lambda sid: clean_cache[sid][1])
+    df["clean_raw"]   = df["sample_id"].map(lambda sid: clean_cache[sid][0])
+    df["clean_pred"]  = df["sample_id"].map(lambda sid: clean_cache[sid][1])
+    df["clean_score"] = df["sample_id"].map(lambda sid: clean_cache[sid][2])
+
+    df["noisy_raw"]   = noisy_raws
     df["noisy_pred"]  = noisy_preds
     df["noisy_score"] = noisy_scores
 
@@ -274,7 +291,7 @@ def run_pipeline(input_path: str, output_path: str):
     # Task 8 — failure_label  (paper §V.E)
     # failure_label = 1 if delta_p > 0.20 else 0
     # For SST-2 binary scores this fires when:
-    #   clean correct (1) and noisy wrong (0)  →  delta_p = 1.0  →  FAILURE
+    #   clean correct (1) and noisy wrong (0)  ->  delta_p = 1.0  -> FAILURE
     # ------------------------------------------------------------------
     df["failure_label"] = (df["delta_p"] > FAILURE_THRESHOLD).astype(int)
 
@@ -295,6 +312,7 @@ def run_pipeline(input_path: str, output_path: str):
     n_rob  = len(df) - n_fail
     pct    = 100 * n_fail / len(df)
     log.info(f"FAILURE: {n_fail} ({pct:.1f}%)   ROBUST: {n_rob} ({100-pct:.1f}%)")
+
     n_unk_c = int((df["clean_pred"] == "unknown").sum())
     n_unk_n = int((df["noisy_pred"] == "unknown").sum())
     if n_unk_c or n_unk_n:
@@ -310,12 +328,14 @@ def run_pipeline(input_path: str, output_path: str):
 def _validate(df: pd.DataFrame):
     log.info("Validating outputs...")
     checks = [
-        (df["clean_pred"].isnull().any(),        "clean_pred has nulls"),
-        (df["noisy_pred"].isnull().any(),        "noisy_pred has nulls"),
+        (df["clean_raw"].isnull().any(),             "clean_raw has nulls"),
+        (df["noisy_raw"].isnull().any(),             "noisy_raw has nulls"),
+        (df["clean_pred"].isnull().any(),            "clean_pred has nulls"),
+        (df["noisy_pred"].isnull().any(),            "noisy_pred has nulls"),
         (~df["clean_score"].isin([0.0, 1.0]).all(), "clean_score outside {0,1}"),
         (~df["noisy_score"].isin([0.0, 1.0]).all(), "noisy_score outside {0,1}"),
         (~pd.api.types.is_numeric_dtype(df["delta_p"]), "delta_p not numeric"),
-        (~df["failure_label"].isin([0, 1]).all(), "failure_label outside {0,1}"),
+        (~df["failure_label"].isin([0, 1]).all(),   "failure_label outside {0,1}"),
     ]
     for condition, message in checks:
         if condition:

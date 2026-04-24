@@ -2,9 +2,9 @@
 GSM8K task adapter for Stage A.
 
 Strategy:
-  - Chain-of-thought prompt; model writes reasoning then "The answer is: N".
-  - Parser (4 layers): "the [final] answer is N" → "Answer: N" line →
-    "#### N" marker → bare-number last line → "unknown".
+  - Chain-of-thought prompt; model writes reasoning then "#### N".
+  - Parser (4 layers): "#### N" → "the [final] answer is N" (last hit) →
+    "Answer: N" line → bare-number last line → "unknown".
   - Score: exact numeric match after normalization (strip commas, $, %, trailing .0).
 """
 
@@ -38,10 +38,9 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
         "role": "user",
         "content": (
             "Solve this math problem step by step.\n"
-            "After your reasoning, write your final answer on its own line "
-            "in EXACTLY this format:\n"
-            "The answer is: <number>\n\n"
-            "Do not write anything after that line.\n\n"
+            "At the end of your solution, write the final numeric answer "
+            "on its own line starting with ####, like this:\n"
+            "#### 42\n\n"
             f"Problem: {text}"
         ),
     }]
@@ -51,18 +50,18 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
 
 
 def parse_output(raw: str) -> str:
-    # P1: "The answer is: N" or "The final answer is: N" (case-insensitive, colon optional)
-    m = re.search(r"[Tt]he (?:final )?answer is:?\s*(-?[\d,]+(?:\.\d+)?)", raw)
-    if m:
-        return m.group(1).replace(",", "")
+    # P1: "#### N" — GSM8K-native format, last occurrence wins
+    hits = re.findall(r"####\s*(-?[\d,]+(?:\.\d+)?)", raw)
+    if hits:
+        return hits[-1].replace(",", "")
 
-    # P2: "Answer: N" at the start of a line
+    # P2: "the [final] answer is N" — last occurrence wins (guards against front-loaded guesses)
+    hits = re.findall(r"[Tt]he (?:final )?answer is:?\s*(-?[\d,]+(?:\.\d+)?)", raw)
+    if hits:
+        return hits[-1].replace(",", "")
+
+    # P3: "Answer: N" alone on a line
     m = re.search(r"(?m)^[Aa]nswer:?\s*(-?[\d,]+(?:\.\d+)?)\s*$", raw)
-    if m:
-        return m.group(1).replace(",", "")
-
-    # P3: GSM8K ground-truth marker "#### N" (model occasionally echoes it)
-    m = re.search(r"####\s*(-?[\d,]+(?:\.\d+)?)", raw)
     if m:
         return m.group(1).replace(",", "")
 

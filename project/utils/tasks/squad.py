@@ -26,20 +26,20 @@ MAX_NEW_TOKENS = 64
 HAS_CONTEXT    = True
 
 
-def load_clean(sample_size: int = 500, seed: int = 42) -> pd.DataFrame:
-    log.info(f"Loading SQuAD v2 validation split (sample_size={sample_size}, seed={seed})...")
+def load_clean(sample_size: int = 500, seed: int = 42, offset: int = 0) -> pd.DataFrame:
+    log.info(f"Loading SQuAD v2 validation split (sample_size={sample_size}, offset={offset}, seed={seed})...")
     raw = load_dataset("rajpurkar/squad_v2", split="validation", trust_remote_code=True)
     answerable = raw.filter(lambda x: len(x["answers"]["text"]) > 0)
-    if len(answerable) < sample_size:
+    if offset + sample_size > len(answerable):
         log.warning(
-            f"Only {len(answerable)} answerable SQuAD examples available; "
-            f"requested {sample_size}. Using all available."
+            f"offset+sample_size ({offset + sample_size}) exceeds available "
+            f"SQuAD examples ({len(answerable)}). Capping."
         )
-        sample_size = len(answerable)
-    answerable = answerable.shuffle(seed=seed).select(range(sample_size))
+        sample_size = max(0, len(answerable) - offset)
+    answerable = answerable.shuffle(seed=seed).select(range(offset, offset + sample_size))
     return pd.DataFrame({
         "dataset":    "squad",
-        "sample_id":  list(range(sample_size)),
+        "sample_id":  list(range(offset, offset + sample_size)),
         "clean_text": answerable["question"],
         "label":      [json.dumps(item["text"]) for item in answerable["answers"]],
         "context":    answerable["context"],

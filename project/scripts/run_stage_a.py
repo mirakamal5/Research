@@ -157,12 +157,12 @@ def _validate(df: pd.DataFrame):
 # Person 1: data + noise + features
 # ---------------------------------------------------------------------------
 
-def person1(task_mod, sample_size: int, seed: int, base_path: str) -> pd.DataFrame:
+def person1(task_mod, sample_size: int, seed: int, base_path: str, offset: int = 0) -> pd.DataFrame:
     log.info("=" * 60)
-    log.info(f"PERSON 1  |  dataset={task_mod.__name__.split('.')[-1]}  sample_size={sample_size}")
+    log.info(f"PERSON 1  |  dataset={task_mod.__name__.split('.')[-1]}  sample_size={sample_size}  offset={offset}")
     log.info("=" * 60)
 
-    clean_df = task_mod.load_clean(sample_size=sample_size, seed=seed)
+    clean_df = task_mod.load_clean(sample_size=sample_size, seed=seed, offset=offset)
     log.info(f"Loaded {len(clean_df)} clean sentences.")
 
     noisy_df = generate_noisy_variants(clean_df, seed=seed)
@@ -224,7 +224,10 @@ def person2(base_df: pd.DataFrame, task_mod, final_path: str) -> pd.DataFrame:
     # --- noisy inference ---
     log.info(f"Running noisy inference on {len(base_df)} rows...")
     noisy_preds, noisy_scores, noisy_raws = [], [], []
-    for _, row in tqdm(base_df.iterrows(), total=len(base_df), desc="Noisy inference"):
+    checkpoint_path = os.path.join("data/processed", f"stage_a_{base_df['dataset'].iloc[0]}_progress.csv")
+    checkpoint_every = 20
+
+    for i, (_, row) in enumerate(tqdm(base_df.iterrows(), total=len(base_df), desc="Noisy inference")):
         ctx  = row["context"] if has_ctx and "context" in base_df.columns else None
         raw  = _infer(row["noisy_text"], model, inf_tok, task_mod, context=ctx)
         pred = task_mod.parse_output(raw)
@@ -232,6 +235,20 @@ def person2(base_df: pd.DataFrame, task_mod, final_path: str) -> pd.DataFrame:
         noisy_preds.append(pred)
         noisy_scores.append(sc)
         noisy_raws.append(raw)
+
+        if (i + 1) % checkpoint_every == 0:
+            ckpt_df = base_df.iloc[: i + 1].copy()
+            ckpt_df["clean_pred"]       = ckpt_df["sample_id"].map(lambda sid: clean_cache[int(sid)][0])
+            ckpt_df["clean_score"]      = ckpt_df["sample_id"].map(lambda sid: clean_cache[int(sid)][1])
+            ckpt_df["clean_raw_output"] = ckpt_df["sample_id"].map(lambda sid: clean_cache[int(sid)][2])
+            ckpt_df["noisy_pred"]       = noisy_preds
+            ckpt_df["noisy_score"]      = noisy_scores
+            ckpt_df["noisy_raw_output"] = noisy_raws
+            ckpt_df["delta_p"]          = ckpt_df["clean_score"] - ckpt_df["noisy_score"]
+            ckpt_df["failure_label"]    = (ckpt_df["delta_p"] > FAILURE_THRESHOLD).astype(int)
+            _makedirs(checkpoint_path)
+            ckpt_df.to_csv(checkpoint_path, index=False)
+            log.info(f"Checkpoint saved at row {i + 1}")
 
     # --- attach results ---
     df = base_df.copy()
@@ -296,16 +313,20 @@ def main():
         help="Directory for the final labeled CSV (Person 2 output).",
     )
     parser.add_argument(
+        "--offset", type=int, default=0,
+        help="Index to start sampling from after shuffling. Use to get non-overlapping batches across runs.",
+    )
+    parser.add_argument(
         "--skip-inference", action="store_true",
         help="Run Person 1 only (no LLM). Useful for local testing without a GPU.",
     )
     args = parser.parse_args()
 
     task_mod   = _load_task(args.dataset)
-    base_path  = os.path.join(args.base_dir,  f"stage_a_{args.dataset}_base.csv")
-    final_path = os.path.join(args.final_dir, f"stage_a_{args.dataset}_final.csv")
+    base_path  = os.path.join(args.base_dir,  f"stage_a_{args.dataset}_offset{args.offset}_base.csv")
+    final_path = os.path.join(args.final_dir, f"stage_a_{args.dataset}_offset{args.offset}_final.csv")
 
-    base_df = person1(task_mod, args.sample_size, args.seed, base_path)
+    base_df = person1(task_mod, args.sample_size, args.seed, base_path, offset=args.offset)
 
     if args.skip_inference:
         log.info("--skip-inference: stopping after Person 1.")

@@ -20,14 +20,14 @@ MAX_NEW_TOKENS = 512
 HAS_CONTEXT    = False
 
 
-def load_clean(sample_size: int = 500, seed: int = 42) -> pd.DataFrame:
-    log.info(f"Loading GSM8K train split (sample_size={sample_size}, seed={seed})...")
+def load_clean(sample_size: int = 500, seed: int = 42, offset: int = 0) -> pd.DataFrame:
+    log.info(f"Loading GSM8K train split (sample_size={sample_size}, offset={offset}, seed={seed})...")
     raw = load_dataset("gsm8k", "main", split="train", trust_remote_code=True)
-    raw = raw.shuffle(seed=seed).select(range(sample_size))
+    raw = raw.shuffle(seed=seed).select(range(offset, offset + sample_size))
     labels = [item["answer"].split("####")[-1].strip() for item in raw]
     return pd.DataFrame({
         "dataset":    "gsm8k",
-        "sample_id":  list(range(sample_size)),
+        "sample_id":  list(range(offset, offset + sample_size)),
         "clean_text": raw["question"],
         "label":      labels,
     })

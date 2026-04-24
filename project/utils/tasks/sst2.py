@@ -35,7 +35,9 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
         "role": "user",
         "content": (
             "Classify the sentiment of the following sentence.\n"
-            "Reply with exactly one word: positive or negative.\n\n"
+            "Reply with exactly one word: positive or negative.\n"
+            "If the sentence is unclear or incomplete, choose the sentiment that seems more likely.\n"
+            "Do not explain. Do not add punctuation.\n\n"
             f"Sentence: {text}\n\n"
             "Sentiment:"
         ),

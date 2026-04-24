@@ -5,7 +5,8 @@ Strategy:
   - Noise the question only; context (passage) is carried unchanged.
   - 500 answerable-only questions from the validation split.
   - Prompt asks for a short phrase from the passage ("Answer:" cue).
-  - Parser: strip whitespace; flag >150 chars as "unknown".
+  - Parser: strip whitespace; flag >150 chars, refusals, and meta-answers
+    as "unknown". Only short, span-like strings are kept.
   - Score: normalized token-level F1, max over all gold answers.
   - 'context' column lives in the base CSV only; it is dropped before
     the final CSV is saved (not part of the shared schema).
@@ -61,9 +62,29 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     )
 
 
+_META_RE = re.compile(
+    r"^("
+    r"i cannot|i can'?t|i don'?t|i am not|i'm not|i do not"
+    r"|the passage does|the text does|the passage (does not|doesn't|says nothing)"
+    r"|based on the (passage|text|context|information)"
+    r"|according to the (passage|text)"
+    r"|the answer (is|would be|could be|is not)"
+    r"|there is no|there are no"
+    r"|this passage|unfortunately|it is not (mentioned|stated|clear|specified)"
+    r"|no (information|mention|answer|details?)"
+    r")",
+    re.IGNORECASE,
+)
+
+
 def parse_output(raw: str) -> str:
     answer = raw.strip()
-    if not answer or len(answer) > 150:
+    if not answer:
+        return "unknown"
+    # Reject clearly explanatory or meta outputs
+    if len(answer) > 150:
+        return "unknown"
+    if _META_RE.match(answer):
         return "unknown"
     return answer
 

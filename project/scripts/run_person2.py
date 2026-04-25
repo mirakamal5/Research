@@ -152,11 +152,13 @@ def _validate(df: pd.DataFrame):
 # ---------------------------------------------------------------------------
 
 def run_chunk(
-    dataset:     str,
-    offset:      int,
-    sample_size: int,
-    base_path:   str,
-    final_dir:   str,
+    dataset:              str,
+    offset:               int,
+    sample_size:          int,
+    base_path:            str,
+    final_dir:            str,
+    filter_clean_correct: bool  = False,
+    min_clean_score:      float = 1.0,
 ):
     end = offset + sample_size
     chunk_path = os.path.join(final_dir, f"stage_a_{dataset}_{offset}_{end}_final.csv")
@@ -212,6 +214,30 @@ def run_chunk(
     log.info(f"Clean accuracy: {clean_acc:.3f}")
     if clean_acc < 0.25:
         log.warning(f"Clean accuracy {clean_acc:.3f} is low — check DEBUG output above.")
+
+    # Optional: drop sample_ids whose clean baseline was wrong
+    if filter_clean_correct:
+        retained_ids = {
+            sid for sid, (_, sc, _) in clean_cache.items() if sc >= min_clean_score
+        }
+        n_evaluated    = len(clean_cache)
+        n_retained     = len(retained_ids)
+        n_removed      = n_evaluated - n_retained
+        n_noisy_before = len(chunk_df)
+        chunk_df = chunk_df[chunk_df["sample_id"].isin(retained_ids)].reset_index(drop=True)
+        n_noisy_after  = len(chunk_df)
+        log.info(
+            f"[filter-clean-correct]  min_clean_score={min_clean_score}\n"
+            f"  clean evaluated  : {n_evaluated}\n"
+            f"  clean retained   : {n_retained}\n"
+            f"  clean removed    : {n_removed}\n"
+            f"  noisy rows before: {n_noisy_before}\n"
+            f"  noisy rows after : {n_noisy_after}\n"
+            f"  noisy rows skipped: {n_noisy_before - n_noisy_after}"
+        )
+        if chunk_df.empty:
+            log.warning("No clean-correct samples in this chunk — skipping noisy inference.")
+            return
 
     # Noisy inference
     log.info(f"Noisy inference: {len(chunk_df)} rows...")
@@ -307,6 +333,11 @@ def main():
                         help="Directory where chunk and merged CSVs are written.")
     parser.add_argument("--merge",       action="store_true",
                         help="Merge all existing chunk files into stage_a_{dataset}_final.csv.")
+    parser.add_argument("--filter-clean-correct", action="store_true",
+                        help="Skip noisy inference for sample_ids where clean_score < --min-clean-score.")
+    parser.add_argument("--min-clean-score", type=float, default=1.0,
+                        help="Minimum clean_score to retain a sample_id (with --filter-clean-correct). "
+                             "Use 1.0 for exact-match tasks (SST2/GSM8K/SVAMP), lower for SQuAD F1.")
     args = parser.parse_args()
 
     if not args.dataset:
@@ -326,6 +357,8 @@ def main():
         sample_size=args.sample_size,
         base_path=base_path,
         final_dir=args.final_dir,
+        filter_clean_correct=args.filter_clean_correct,
+        min_clean_score=args.min_clean_score,
     )
 
 

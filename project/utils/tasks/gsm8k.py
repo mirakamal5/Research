@@ -16,7 +16,7 @@ from datasets import load_dataset
 
 log = logging.getLogger(__name__)
 
-MAX_NEW_TOKENS = 512
+MAX_NEW_TOKENS = 128
 HAS_CONTEXT    = False
 
 
@@ -37,10 +37,8 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     messages = [{
         "role": "user",
         "content": (
-            "Solve this math problem step by step.\n"
-            "At the end of your solution, write the final numeric answer "
-            "on its own line starting with ####, like this:\n"
-            "#### 42\n\n"
+            "Solve this math problem. Use at most 3 short lines of working.\n"
+            "Write the final answer on its own line as: #### [number]\n\n"
             f"Problem: {text}"
         ),
     }]

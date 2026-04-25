@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/d/SPRING 2026/MACHINE LEARNING/Model/**)",
+      "Bash(python3)",
+      "Bash(python3 -c ' *)",
+      "Bash(python -c ' *)",
+      "Bash(pip show *)",
+      "Bash(conda install *)",
+      "Bash(python -c \"import xgboost; print\\(xgboost.__version__\\)\")",
+      "Bash(python -c \"import seaborn; print\\('seaborn', seaborn.__version__\\)\")",
+      "Bash(python scripts/stage_b_train.py)",
+      "Bash(python -c \"import xgboost; print\\('xgboost', xgboost.__version__\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/stage_b_train.py'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(where python *)",
+      "Bash(pip list *)"
+    ],
+    "additionalDirectories": [
+      "d:\\d\\SPRING 2026\\MACHINE LEARNING\\Model\\Research",
+      "d:\\SPRING 2026\\MACHINE LEARNING\\Model\\Research\\project\\utils"
+    ]
+  }
+}

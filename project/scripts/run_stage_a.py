@@ -49,6 +49,7 @@ TASK_MODULES = {
     "sst2":  "utils.tasks.sst2",
     "squad": "utils.tasks.squad",
     "gsm8k": "utils.tasks.gsm8k",
+    "svamp": "utils.tasks.svamp",
 }
 
 # Canonical 18-column schema + 2 debug columns

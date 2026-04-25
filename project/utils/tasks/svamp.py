@@ -45,10 +45,11 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     messages = [{
         "role": "user",
         "content": (
-            "Solve this math problem. Use concise reasoning if needed.\n"
-            "End your response with the final numeric answer in this exact format:\n"
+            "Solve this math problem.\n"
+            "Return only the final numeric answer in this exact format:\n"
             "#### [number]\n"
-            "Do not write anything after the number.\n\n"
+            "Example: #### 42\n\n"
+            "Do not explain. Do not include units. Do not write anything after the number.\n\n"
             f"Problem: {text}"
         ),
     }]

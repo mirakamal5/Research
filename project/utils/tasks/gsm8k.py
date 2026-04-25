@@ -37,8 +37,10 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     messages = [{
         "role": "user",
         "content": (
-            "Solve this math problem. Use at most 3 short lines of working.\n"
-            "Write the final answer on its own line as: #### [number]\n\n"
+            "Solve this math problem. Use concise reasoning if needed.\n"
+            "End your response with the final numeric answer in this exact format:\n"
+            "#### [number]\n"
+            "Do not write anything after the number.\n\n"
             f"Problem: {text}"
         ),
     }]
@@ -67,6 +69,11 @@ def parse_output(raw: str) -> str:
     last_line = raw.strip().rsplit("\n", 1)[-1].strip()
     if re.fullmatch(r"-?[\d,]+(?:\.\d+)?", last_line):
         return last_line.replace(",", "")
+
+    # P5: last number anywhere in the output (ultimate fallback)
+    nums = re.findall(r"-?[\d,]+(?:\.\d+)?", raw)
+    if nums:
+        return nums[-1].replace(",", "")
 
     return "unknown"
 

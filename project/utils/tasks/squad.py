@@ -4,9 +4,10 @@ SQuAD v2 task adapter for Stage A.
 Strategy:
   - Noise the question only; context (passage) is carried unchanged.
   - 500 answerable-only questions from the validation split.
-  - Prompt asks for a short phrase from the passage ("Answer:" cue).
-  - Parser: strip whitespace; flag >150 chars, refusals, and meta-answers
-    as "unknown". Only short, span-like strings are kept.
+  - Prompt explicitly instructs the model to output ONLY the answer phrase.
+  - Parser: take first line only, strip "Answer:" echo, extract from
+    "The answer is X" format, strip trailing parentheticals, then apply
+    150-char and refusal checks.
   - Score: normalized token-level F1, max over all gold answers.
   - 'context' column lives in the base CSV only; it is dropped before
     the final CSV is saved (not part of the shared schema).
@@ -50,8 +51,9 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     messages = [{
         "role": "user",
         "content": (
-            "Read the passage below and answer the question with a short phrase "
-            "taken directly from the passage.\n\n"
+            "Read the passage and answer the question with a short phrase "
+            "taken directly from the passage.\n"
+            "Output ONLY the answer phrase. Do not explain or add context.\n\n"
             f"Passage: {context}\n\n"
             f"Question: {text}\n\n"
             "Answer:"
@@ -62,13 +64,14 @@ def build_prompt(text: str, tokenizer, context: str = None) -> str:
     )
 
 
+_ANSWER_IS_RE = re.compile(r"the\s+answer\s+is[:\s]+(.+)", re.IGNORECASE)
+
 _META_RE = re.compile(
     r"^("
     r"i cannot|i can'?t|i don'?t|i am not|i'm not|i do not"
     r"|the passage does|the text does|the passage (does not|doesn't|says nothing)"
     r"|based on the (passage|text|context|information)"
     r"|according to the (passage|text)"
-    r"|the answer (is|would be|could be|is not)"
     r"|there is no|there are no"
     r"|this passage|unfortunately|it is not (mentioned|stated|clear|specified)"
     r"|no (information|mention|answer|details?)"
@@ -78,14 +81,36 @@ _META_RE = re.compile(
 
 
 def parse_output(raw: str) -> str:
-    answer = raw.strip()
+    # Take first non-empty line — model sometimes appends explanation after newline
+    lines = [l.strip() for l in raw.strip().split("\n") if l.strip()]
+    answer = lines[0] if lines else ""
+
+    # Strip "Answer:" echo (model sometimes repeats the cue word)
+    answer = re.sub(r"^[Aa]nswer\s*:\s*", "", answer).strip()
+
     if not answer:
         return "unknown"
-    # Reject clearly explanatory or meta outputs
-    if len(answer) > 150:
+
+    # Extract from "The answer is X" format instead of rejecting it
+    m = _ANSWER_IS_RE.match(answer)
+    if m:
+        answer = m.group(1).strip()
+
+    # Strip trailing parenthetical (e.g. "Paris (capital of France)")
+    answer = re.sub(r"\s*\([^)]*\)\s*$", "", answer).strip()
+
+    # Strip trailing punctuation artifacts
+    answer = answer.rstrip(".,;:")
+
+    if not answer:
         return "unknown"
+
     if _META_RE.match(answer):
         return "unknown"
+
+    if len(answer) > 150:
+        return "unknown"
+
     return answer
 
 

@@ -1,0 +1,4 @@
+dataset,rows,unique_samples,failure_rate,mean_delta_p,mean_noisy_score
+sst2,12708,706,0.2858,0.2858,0.7142
+svamp,4230,235,0.4804,0.4804,0.5196
+squad,5526,307,0.3,0.1694,0.6723

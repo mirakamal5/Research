@@ -1,0 +1,114 @@
+================================================================================
+STAGE B CORRELATION ANALYSIS
+================================================================================
+
+Purpose:
+This analysis checks whether tokenizer-only fragmentation features are statistically associated with LLM degradation and failure labels.
+
+Features:
+sigma_prime, oov_rate, severity, word_count, alpha
+
+Targets:
+failure_label, delta_p, noisy_score
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+dataset  rows  unique_samples  failure_rate  mean_delta_p  mean_noisy_score
+   sst2 12708             706        0.2858        0.2858            0.7142
+  svamp  4230             235        0.4804        0.4804            0.5196
+  squad  5526             307        0.3000        0.1694            0.6723
+
+================================================================================
+TOP CORRELATIONS WITH failure_label
+================================================================================
+
+[SQUAD]
+    feature  pearson  spearman  abs_spearman
+   severity   0.3239    0.3231        0.3231
+      alpha   0.2690    0.2523        0.2523
+sigma_prime   0.2475    0.2379        0.2379
+   oov_rate   0.2058    0.2202        0.2202
+ word_count   0.0074    0.0274        0.0274
+
+[SST2]
+    feature  pearson  spearman  abs_spearman
+   severity   0.2127    0.2152        0.2152
+sigma_prime   0.1654    0.1844        0.1844
+ word_count  -0.1265   -0.1743        0.1743
+      alpha   0.0895    0.0821        0.0821
+   oov_rate   0.0570    0.0726        0.0726
+
+[SVAMP]
+    feature  pearson  spearman  abs_spearman
+      alpha   0.3974    0.3791        0.3791
+   severity   0.3387    0.3448        0.3448
+sigma_prime   0.3178    0.2954        0.2954
+   oov_rate   0.1886    0.2072        0.2072
+ word_count   0.0864    0.0845        0.0845
+
+================================================================================
+TOP CORRELATIONS WITH delta_p
+================================================================================
+
+[SQUAD]
+    feature  pearson  spearman  abs_spearman
+   severity   0.3224    0.3125        0.3125
+      alpha   0.2601    0.2320        0.2320
+sigma_prime   0.2362    0.2239        0.2239
+   oov_rate   0.1980    0.2097        0.2097
+ word_count   0.0057    0.0351        0.0351
+
+[SST2]
+    feature  pearson  spearman  abs_spearman
+   severity   0.2127    0.2152        0.2152
+sigma_prime   0.1654    0.1844        0.1844
+ word_count  -0.1265   -0.1743        0.1743
+      alpha   0.0895    0.0821        0.0821
+   oov_rate   0.0570    0.0726        0.0726
+
+[SVAMP]
+    feature  pearson  spearman  abs_spearman
+      alpha   0.3974    0.3791        0.3791
+   severity   0.3387    0.3448        0.3448
+sigma_prime   0.3178    0.2954        0.2954
+   oov_rate   0.1886    0.2072        0.2072
+ word_count   0.0864    0.0845        0.0845
+
+================================================================================
+TOP CORRELATIONS WITH noisy_score
+================================================================================
+
+[SQUAD]
+    feature  pearson  spearman  abs_spearman
+   severity  -0.3032   -0.2816        0.2816
+      alpha  -0.2384   -0.2075        0.2075
+   oov_rate  -0.2026   -0.2044        0.2044
+sigma_prime  -0.2102   -0.1833        0.1833
+ word_count   0.0111   -0.0187        0.0187
+
+[SST2]
+    feature  pearson  spearman  abs_spearman
+   severity  -0.2127   -0.2152        0.2152
+sigma_prime  -0.1654   -0.1844        0.1844
+ word_count   0.1265    0.1743        0.1743
+      alpha  -0.0895   -0.0821        0.0821
+   oov_rate  -0.0570   -0.0726        0.0726
+
+[SVAMP]
+    feature  pearson  spearman  abs_spearman
+      alpha  -0.3974   -0.3791        0.3791
+   severity  -0.3387   -0.3448        0.3448
+sigma_prime  -0.3178   -0.2954        0.2954
+   oov_rate  -0.1886   -0.2072        0.2072
+ word_count  -0.0864   -0.0845        0.0845
+
+================================================================================
+INTERPRETATION GUIDE
+================================================================================
+Positive correlation with failure_label or delta_p means that the feature increases when failure/degradation increases.
+Negative correlation with noisy_score means that the feature increases when model performance decreases.
+Spearman correlation is especially useful here because relationships may be monotonic but not perfectly linear.
+
+Suggested paper wording:
+Correlation analysis showed that tokenizer-derived fragmentation features are associated with degradation and failure labels. In particular, severity and fragmentation-related variables such as alpha, sigma_prime, and oov_rate generally show positive association with failure_label and delta_p, and negative association with noisy_score. This supports the use of tokenizer-only features as pre-inference predictors rather than arbitrary engineered variables.

@@ -1,0 +1,116 @@
+========================================================================
+STAGE B SUMMARY — SQUAD
+Task: Reading Comprehension / Question Answering
+========================================================================
+
+DATASET STATISTICS
+----------------------------------------
+  Rows             : 5526
+  Unique samples   : 307
+  Class 0 (ROBUST) : 3868 (70.0%)
+  Class 1 (FAILURE): 1658 (30.0%)
+  Failure rate     : 0.3000
+
+DATA QUALITY CHECK
+----------------------------------------
+  All sample_ids have exactly 18 variants (6 noise types × 3 severities)
+  No missing values in feature/target columns
+  No duplicate rows
+  Stage A CSVs are clean-correct filtered — no unknown baselines removed
+
+SPLIT  (GroupShuffleSplit, test_size=0.20, seed=42)
+----------------------------------------
+  Train: 4410 rows | 245 groups
+  Test : 1116 rows  | 62 groups
+  Group leakage: NONE (verified — no sample_id shared across splits)
+
+FEATURES (tokeniser-only, no LLM involved at Stage B)
+----------------------------------------
+  ['sigma_prime', 'oov_rate', 'severity', 'word_count', 'alpha']
+
+HOLDOUT RESULTS  (threshold λ=0.50, default)
+----------------------------------------
+model  threshold  accuracy  precision_macro  recall_macro  f1_macro  f1_failure  roc_auc  pr_auc    fpr    fnr  tn  fp  fn  tp
+   LR        0.5    0.6496           0.6250        0.6405    0.6248      0.5283   0.7025  0.5128 0.3342 0.3848 506 254 137 219
+   RF        0.5    0.6891           0.6508        0.6605    0.6541      0.5440   0.7320  0.5499 0.2605 0.4185 562 198 149 207
+  XGB        0.5    0.6658           0.6385        0.6546    0.6399      0.5435   0.7208  0.5520 0.3145 0.3764 521 239 134 222
+
+HOLDOUT RESULTS  (threshold λ=0.57, tuned via OOF on train set)
+----------------------------------------
+model  threshold  accuracy  precision_macro  recall_macro  f1_macro  f1_failure  roc_auc  pr_auc    fpr    fnr  tn  fp  fn  tp
+   LR       0.57    0.6891           0.6433        0.6448    0.6440      0.5174   0.7025  0.5128 0.2329 0.4775 583 177 170 186
+   RF       0.57    0.7070           0.6576        0.6453    0.6498      0.5083   0.7320  0.5499 0.1842 0.5253 620 140 187 169
+  XGB       0.57    0.7016           0.6517        0.6421    0.6458      0.5052   0.7208  0.5520 0.1934 0.5225 613 147 186 170
+
+Best model (by f1_macro, λ=0.50) : RF
+Best hyperparameters              : {'max_depth': 10, 'min_samples_leaf': 10, 'n_estimators': 200}
+Optimal threshold λ               : 0.57
+  (selected on OOF F1_macro — test set never seen during threshold tuning)
+
+5-FOLD GROUPED CV STABILITY  (StratifiedGroupKFold, full dataset)
+----------------------------------------
+
+  LR:
+    f1_macro            : 0.6333 ± 0.0117
+    f1_failure          : 0.5337 ± 0.0144
+    roc_auc             : 0.7165 ± 0.0125
+    pr_auc              : 0.5121 ± 0.0133
+    accuracy            : 0.6604 ± 0.0116
+
+  RF:
+    f1_macro            : 0.6646 ± 0.0119
+    f1_failure          : 0.5544 ± 0.0109
+    roc_auc             : 0.7401 ± 0.0114
+    pr_auc              : 0.5544 ± 0.0071
+    accuracy            : 0.7011 ± 0.0151
+
+  XGB:
+    f1_macro            : 0.6490 ± 0.0061
+    f1_failure          : 0.5593 ± 0.0063
+    roc_auc             : 0.7397 ± 0.0085
+    pr_auc              : 0.5413 ± 0.0118
+    accuracy            : 0.6723 ± 0.0109
+
+FEATURE IMPORTANCE
+----------------------------------------
+    feature  lr_coef_abs  rf_importance  xgb_importance
+sigma_prime       0.0926         0.2073          0.0500
+   oov_rate       0.2058         0.2435          0.0363
+   severity       0.4294         0.2433          0.8457
+ word_count       0.0642         0.1114          0.0383
+      alpha       0.2781         0.1945          0.0297
+
+ABLATION  (leave-one-out, best model on holdout test set)
+----------------------------------------
+           excluded  f1_macro  delta_f1
+none (all features)    0.6541    0.0000
+        sigma_prime    0.6472    0.0069
+           oov_rate    0.6440    0.0101
+           severity    0.6317    0.0224
+         word_count    0.6532    0.0009
+              alpha    0.6459    0.0082
+
+NOISE ANALYSIS  (best model, holdout test set, tuned threshold)
+----------------------------------------
+   groupby                 value   n  failure_rate  f1_macro  roc_auc  precision_failure  recall_failure
+noise_type         char_deletion 186        0.4839    0.6489   0.7193             0.7213          0.4889
+noise_type       char_repetition 186        0.1935    0.5541   0.6201             0.2727          0.3333
+noise_type             homoglyph 186        0.4301    0.6737   0.7325             0.6400          0.6000
+noise_type intra_word_whitespace 186        0.1183    0.5008   0.6440             0.2000          0.0455
+noise_type    keyboard_proximity 186        0.5215    0.6979   0.8161             0.8387          0.5361
+noise_type      random_case_flip 186        0.1667    0.5054   0.6108             0.1935          0.3871
+  severity                  0.05 372        0.1452    0.4609   0.5892             0.0000          0.0000
+  severity                  0.15 372        0.3306    0.5085   0.6128             0.4286          0.1707
+  severity                   0.3 372        0.4812    0.6027   0.7069             0.5692          0.8268
+
+========================================================================
+INTERPRETATION NOTES
+========================================================================
+  * SQuAD uses F1-based scoring on span extraction. Labels were improved after a parser fix. Free-text QA is more complex than binary or numeric tasks, but span-level fragmentation effects should still be visible.
+  * λ=0.50 is the safe default threshold for deployment.
+  * λ=0.57 was tuned on OOF predictions (train set only, test set unseen).
+  * For a deployment gate, prefer lower λ to maximise recall on FAILURE (lower FNR).
+  * ROC-AUC and PR-AUC are threshold-independent — use them to compare models.
+  * PR-AUC is especially informative when failure class is imbalanced.
+  * F1_macro is the primary target metric; goal F1 > 0.75 stated for full system.
+========================================================================

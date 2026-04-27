@@ -1,0 +1,10 @@
+groupby,value,n,failure_rate,f1_macro,roc_auc,precision_failure,recall_failure
+noise_type,char_deletion,750,0.4533,0.6673,0.7182,0.6678,0.5676
+noise_type,char_repetition,750,0.2107,0.5644,0.6497,0.2995,0.4114
+noise_type,homoglyph,750,0.448,0.7096,0.7926,0.6734,0.6935
+noise_type,intra_word_whitespace,750,0.1867,0.6034,0.7271,0.4176,0.2714
+noise_type,keyboard_proximity,750,0.46,0.6409,0.6959,0.6414,0.5391
+noise_type,random_case_flip,750,0.1747,0.5411,0.6124,0.2356,0.313
+severity,0.05,1500,0.1793,0.5287,0.6663,0.5102,0.0929
+severity,0.15,1500,0.3287,0.6055,0.6703,0.5137,0.3793
+severity,0.3,1500,0.4587,0.5981,0.6915,0.5473,0.7907

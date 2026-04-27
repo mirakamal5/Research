@@ -1,0 +1,7 @@
+excluded,features_used,f1_macro,delta_f1
+none (all features),"sigma_prime, oov_rate, severity, word_count, alpha",0.6952,0.0
+sigma_prime,"oov_rate, severity, word_count, alpha",0.6838,0.0114
+oov_rate,"sigma_prime, severity, word_count, alpha",0.684,0.0112
+severity,"sigma_prime, oov_rate, word_count, alpha",0.6746,0.0206
+word_count,"sigma_prime, oov_rate, severity, alpha",0.6905,0.0047
+alpha,"sigma_prime, oov_rate, severity, word_count",0.6855,0.0097

@@ -1,0 +1,4 @@
+model,threshold,accuracy,precision_macro,recall_macro,f1_macro,f1_failure,roc_auc,pr_auc,fpr,fnr,tn,fp,fn,tp,train_dataset,test_dataset
+LR,0.5,0.6636,0.6725,0.6673,0.662,0.6852,0.731,0.7125,0.4277,0.2377,1258,940,483,1549,squad,svamp
+RF,0.5,0.6527,0.6924,0.643,0.6246,0.522,0.7285,0.7389,0.1087,0.6053,1959,239,1230,802,squad,svamp
+XGB,0.5,0.6771,0.6767,0.6757,0.6758,0.6556,0.7343,0.7413,0.2884,0.3602,1564,634,732,1300,squad,svamp
